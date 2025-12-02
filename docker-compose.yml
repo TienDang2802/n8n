@@ -1,0 +1,121 @@
+version: "3.8"
+
+services:
+  db:
+    build:
+      context: ./infrastructure/dbms/postgres
+      args:
+        POSTGRES_VERSION: ${POSTGRES_VERSION}
+    container_name: n8n_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - ${DATA_PATH_HOST}/postgres:/var/lib/postgresql/data
+    networks:
+      - n8n_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  n8n:
+    build:
+      context: ./infrastructure/n8n
+      args:
+        N8N_VERSION: ${N8N_VERSION:-latest}
+    container_name: n8n
+    restart: always
+    # should run n8n in internal network, should not expose
+    # If debug local, open "5678:5678"
+    # ports:
+    #   - "5678:5678"
+    environment:
+      # DB
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      # Auth n8n
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      # URL public for n8n generate link webhook & editor
+      - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}/
+      - N8N_EDITOR_BASE_URL=${N8N_PROTOCOL}://${N8N_HOST}/
+      - TZ=Asia/Ho_Chi_Minh
+      # Performance optimizations
+      - N8N_METRICS=true
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+    depends_on:
+      - db
+    volumes:
+      - ${DATA_PATH_HOST}/n8n:/home/node/.n8n
+    networks:
+      - n8n_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    build:
+      context: ./infrastructure/nginx
+    container_name: n8n_nginx
+    environment:
+      - NGINX_ENV=${NGINX_ENV:-prod}
+      - NGINX_HOST=${NGINX_HOST}
+      - NGINX_PORT=${NGINX_PORT:-443}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
+      - ${CERT_PATH}/nginx/letsencrypt:/etc/letsencrypt
+      - ${CERT_PATH}/nginx/certbot:/var/www/certbot
+    depends_on:
+      - n8n
+    restart: always
+    networks:
+      - n8n_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - ${CERT_PATH}/nginx/letsencrypt:/etc/letsencrypt
+      - ${CERT_PATH}/nginx/certbot:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet || true;
+        sleep 12h & wait $!;
+      done"
+    networks:
+      - n8n_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+networks:
+  n8n_net:
+    driver: bridge
