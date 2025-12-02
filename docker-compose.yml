@@ -102,12 +102,15 @@ services:
     volumes:
       - ${CERT_PATH}/nginx/letsencrypt:/etc/letsencrypt
       - ${CERT_PATH}/nginx/certbot:/var/www/certbot
-    entrypoint: >
-      /bin/sh -c "trap exit TERM;
-      while :; do
-        certbot renew --webroot -w /var/www/certbot --quiet || true;
-        sleep 12h & wait $!;
-      done"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        trap exit TERM;
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --quiet || true;
+          sleep 12h & wait $$!;
+        done
     networks:
       - n8n_net
     logging:
