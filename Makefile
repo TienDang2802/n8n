@@ -10,6 +10,10 @@ RESET  := $(shell tput -Txterm sgr0)
 COMPOSE_FILE := docker-compose.yml
 ENV_FILE := .env
 
+# Detect Docker Compose command (support both 'docker compose' and 'docker-compose')
+# Try 'docker compose' first (Docker Compose V2), fallback to 'docker-compose' (V1)
+DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+
 help: ## Hiển thị danh sách các lệnh có sẵn
 	@echo "$(GREEN)Available commands:$(RESET)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(RESET) %s\n", $$1, $$2}'
@@ -34,11 +38,11 @@ setup: ## Khởi tạo project: copy .env.example, tạo thư mục cần thiế
 
 build: ## Build Docker images
 	@echo "$(GREEN)Building Docker images...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) build
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build
 
 up: ## Khởi động tất cả services (detached mode)
 	@echo "$(GREEN)Starting services...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) up -d
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo "$(GREEN)Services started!$(RESET)"
 	@echo "$(YELLOW)Run 'make logs' to view logs$(RESET)"
 
@@ -46,38 +50,38 @@ start: up ## Alias cho up
 
 down: ## Dừng và xóa containers
 	@echo "$(YELLOW)Stopping services...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) down
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 
 stop: down ## Alias cho down
 
 restart: ## Khởi động lại tất cả services
 	@echo "$(GREEN)Restarting services...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) restart
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) restart
 
 logs: ## Xem logs của tất cả services (follow mode)
-	docker compose -f $(COMPOSE_FILE) logs -f
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f
 
 logs-db: ## Xem logs của database
-	docker compose -f $(COMPOSE_FILE) logs -f db
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f db
 
 logs-n8n: ## Xem logs của n8n
-	docker compose -f $(COMPOSE_FILE) logs -f n8n
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f n8n
 
 logs-nginx: ## Xem logs của nginx
-	docker compose -f $(COMPOSE_FILE) logs -f nginx
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f nginx
 
 logs-certbot: ## Xem logs của certbot
-	docker compose -f $(COMPOSE_FILE) logs -f certbot
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f certbot
 
 ps: ## Hiển thị trạng thái các containers
-	docker compose -f $(COMPOSE_FILE) ps
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) ps
 
 status: ps ## Alias cho ps
 
 health: ## Kiểm tra health của các services
 	@echo "$(GREEN)Checking service health...$(RESET)"
 	@echo "\n$(YELLOW)Container Status:$(RESET)"
-	@docker compose -f $(COMPOSE_FILE) ps
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) ps
 	@echo "\n$(YELLOW)Network Status:$(RESET)"
 	@docker network ls | grep n8n_net || echo "Network not found"
 	@echo "\n$(YELLOW)Volume Status:$(RESET)"
@@ -103,7 +107,7 @@ db-psql: ## Truy cập PostgreSQL CLI
 
 clean: ## Xóa containers, networks (giữ volumes)
 	@echo "$(YELLOW)Cleaning up containers and networks...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) down
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down
 	@echo "$(GREEN)Clean completed (volumes preserved)$(RESET)"
 
 clean-all: ## Xóa tất cả: containers, networks, volumes (⚠️ DANGER: mất dữ liệu)
@@ -111,7 +115,7 @@ clean-all: ## Xóa tất cả: containers, networks, volumes (⚠️ DANGER: m�
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose -f $(COMPOSE_FILE) down -v; \
+		$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v; \
 		echo "$(GREEN)All cleaned up$(RESET)"; \
 	else \
 		echo "$(YELLOW)Cancelled$(RESET)"; \
@@ -119,11 +123,11 @@ clean-all: ## Xóa tất cả: containers, networks, volumes (⚠️ DANGER: m�
 
 pull: ## Pull latest images
 	@echo "$(GREEN)Pulling latest images...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) pull
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) pull
 
 rebuild: ## Rebuild images và khởi động lại services
 	@echo "$(GREEN)Rebuilding and restarting services...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) up -d --build --force-recreate
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --build --force-recreate
 
 certbot-init: ## Khởi tạo SSL certificate với certbot (cần set DOMAIN và EMAIL trong .env)
 	@if [ ! -f $(ENV_FILE) ]; then \
@@ -149,7 +153,7 @@ certbot-init: ## Khởi tạo SSL certificate với certbot (cần set DOMAIN v�
 
 certbot-renew: ## Renew SSL certificates manually
 	@echo "$(GREEN)Renewing SSL certificates...$(RESET)"
-	docker compose -f $(COMPOSE_FILE) exec certbot certbot renew
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec certbot certbot renew
 
 backup-db: ## Backup PostgreSQL database
 	@if [ ! -f $(ENV_FILE) ]; then \
