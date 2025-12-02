@@ -98,7 +98,9 @@ shell-nginx: ## Truy cập shell của nginx container
 
 db-psql: ## Truy cập PostgreSQL CLI
 	@if [ -f $(ENV_FILE) ]; then \
+		set -a; \
 		. $(ENV_FILE); \
+		set +a; \
 		docker exec -it n8n_postgres psql -U $$POSTGRES_USER -d $$POSTGRES_DB; \
 	else \
 		echo "$(YELLOW)⚠ .env file not found$(RESET)"; \
@@ -134,7 +136,9 @@ certbot-init: ## Khởi tạo SSL certificate với certbot (cần set DOMAIN v�
 		echo "$(YELLOW)⚠ .env file not found. Run 'make setup' first$(RESET)"; \
 		exit 1; \
 	fi
-	@. $(ENV_FILE); \
+	@set -a; \
+	. $(ENV_FILE); \
+	set +a; \
 	if [ -z "$$NGINX_HOST" ] || [ -z "$$EMAIL" ]; then \
 		echo "$(YELLOW)⚠ Please set NGINX_HOST and EMAIL in .env file$(RESET)"; \
 		exit 1; \
@@ -160,7 +164,9 @@ backup-db: ## Backup PostgreSQL database
 		echo "$(YELLOW)⚠ .env file not found$(RESET)"; \
 		exit 1; \
 	fi
-	@. $(ENV_FILE); \
+	@set -a; \
+	. $(ENV_FILE); \
+	set +a; \
 	BACKUP_FILE="backup_$$(date +%Y%m%d_%H%M%S).sql"; \
 	echo "$(GREEN)Backing up database to $$BACKUP_FILE...$(RESET)"; \
 	mkdir -p backups; \
@@ -180,7 +186,9 @@ restore-db: ## Restore PostgreSQL database (usage: make restore-db FILE=backup.s
 		echo "$(YELLOW)⚠ Backup file $(FILE) not found$(RESET)"; \
 		exit 1; \
 	fi
-	@. $(ENV_FILE); \
+	@set -a; \
+	. $(ENV_FILE); \
+	set +a; \
 	echo "$(YELLOW)⚠ WARNING: This will overwrite the current database!$(RESET)"; \
 	read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
