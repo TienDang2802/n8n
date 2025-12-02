@@ -135,8 +135,8 @@ certbot-init: ## Khởi tạo SSL certificate với certbot (cần set DOMAIN v�
 	@if [ ! -f $(ENV_FILE) ]; then \
 		echo "$(YELLOW)⚠ .env file not found. Run 'make setup' first$(RESET)"; \
 		exit 1; \
-	fi
-	@set -a; \
+	fi; \
+	set -a; \
 	. $(ENV_FILE); \
 	set +a; \
 	if [ -z "$$NGINX_HOST" ] || [ -z "$$EMAIL" ]; then \
