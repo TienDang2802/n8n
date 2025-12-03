@@ -89,12 +89,44 @@ else
   done
 fi
 
+# Wait for n8n container to be ready (resolve hostname)
+echo "Waiting for n8n container to be ready..."
+MAX_WAIT=60
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+  if getent hosts n8n >/dev/null 2>&1 || nslookup n8n >/dev/null 2>&1; then
+    echo "✓ n8n container is reachable"
+    break
+  fi
+  sleep 1
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  if [ $((WAIT_COUNT % 5)) -eq 0 ]; then
+    echo "  Still waiting for n8n... (${WAIT_COUNT}s)"
+  fi
+done
+
+if [ $WAIT_COUNT -eq $MAX_WAIT ]; then
+  echo "⚠ Warning: n8n container not reachable after ${MAX_WAIT}s"
+  echo "  Nginx will start anyway, but may fail to proxy until n8n is ready"
+fi
+
 # Test nginx configuration
 echo "Testing nginx configuration..."
 if nginx -t; then
   echo "✓ Nginx configuration is valid"
 else
   echo "✗ Nginx configuration test failed"
+  echo "Checking for common issues..."
+  
+  # Check if n8n hostname resolves
+  if ! getent hosts n8n >/dev/null 2>&1 && ! nslookup n8n >/dev/null 2>&1; then
+    echo "  ⚠ n8n hostname cannot be resolved"
+    echo "  This is normal if n8n container is still starting"
+    echo "  Nginx will retry when handling requests"
+  fi
+  
+  # Show nginx test output
+  nginx -t 2>&1 || true
   exit 1
 fi
 
