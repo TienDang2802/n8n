@@ -115,7 +115,12 @@ services:
       - |
         trap exit TERM;
         while :; do
-          certbot renew --webroot -w /var/www/certbot --quiet || true;
+          echo "$(date): Checking certificate renewal..."
+          if certbot renew --webroot -w /var/www/certbot --no-random-sleep-on-renew; then
+            echo "$(date): Certificate renewal check completed"
+          else
+            echo "$(date): Certificate renewal check failed (this is normal if certificates are not due for renewal)"
+          fi
           sleep 12h & wait $$!;
         done
     depends_on:
