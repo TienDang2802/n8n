@@ -173,17 +173,16 @@ certbot-init: ## Khởi tạo SSL certificate với certbot (cần set NGINX_HOS
 	@bash scripts/init-letsencrypt.sh
 
 certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubleshooting)
-	@echo "$(GREEN)========================================$(RESET)"; \
+	@bash -c '\
+	echo "$(GREEN)========================================$(RESET)"; \
 	echo "$(GREEN)SSL Certificate Diagnostics$(RESET)"; \
 	echo "$(GREEN)========================================$(RESET)"; \
 	echo ""; \
 	if [ -f $(ENV_FILE) ]; then \
-		set -a; \
-		. $(ENV_FILE) 2>/dev/null || true; \
-		set +a; \
+		export $$(grep -v "^#" $(ENV_FILE) | grep -v "^$$" | xargs); \
 	fi; \
 	echo "$(YELLOW)1. Checking nginx container...$(RESET)"; \
-	if docker ps --format '{{.Names}}' | grep -q "^n8n_nginx$$"; then \
+	if docker ps --format "{{.Names}}" | grep -q "^n8n_nginx$$"; then \
 		echo "$(GREEN)✓ Nginx container is running$(RESET)"; \
 	else \
 		echo "$(RED)✗ Nginx container is NOT running$(RESET)"; \
@@ -191,7 +190,7 @@ certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubl
 	fi; \
 	echo ""; \
 	echo "$(YELLOW)2. Checking port 80 binding...$(RESET)"; \
-	if docker ps --format '{{.Names}}' | grep -q "^n8n_nginx$$"; then \
+	if docker ps --format "{{.Names}}" | grep -q "^n8n_nginx$$"; then \
 		if docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -q ":80 " || \
 		   docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -q ":80 "; then \
 			echo "$(GREEN)✓ Nginx is listening on port 80$(RESET)"; \
@@ -218,9 +217,7 @@ certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubl
 	SERVER_IP=$$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown"); \
 	echo "   Server IP: $$SERVER_IP"; \
 	if [ -f $(ENV_FILE) ]; then \
-		set -a; \
-		. $(ENV_FILE) 2>/dev/null || true; \
-		set +a; \
+		export $$(grep -v "^#" $(ENV_FILE) | grep -v "^$$" | xargs); \
 		echo "   Domain: $${NGINX_HOST:-not set in .env}"; \
 		if [ -n "$${NGINX_HOST}" ]; then \
 			echo "   Run: dig $${NGINX_HOST} to verify DNS"; \
@@ -232,9 +229,7 @@ certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubl
 	echo ""; \
 	echo "$(YELLOW)5. Testing ACME challenge endpoint...$(RESET)"; \
 	if [ -f $(ENV_FILE) ]; then \
-		set -a; \
-		. $(ENV_FILE) 2>/dev/null || true; \
-		set +a; \
+		export $$(grep -v "^#" $(ENV_FILE) | grep -v "^$$" | xargs); \
 		if [ -n "$${NGINX_HOST}" ]; then \
 			if curl -s --max-time 5 "http://$${NGINX_HOST}/.well-known/acme-challenge/test" >/dev/null 2>&1; then \
 				echo "$(GREEN)✓ Endpoint is accessible from internet$(RESET)"; \
@@ -251,7 +246,7 @@ certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubl
 	fi; \
 	echo ""; \
 	echo "$(YELLOW)6. Checking nginx configuration...$(RESET)"; \
-	if docker ps --format '{{.Names}}' | grep -q "^n8n_nginx$$"; then \
+	if docker ps --format "{{.Names}}" | grep -q "^n8n_nginx$$"; then \
 		if docker exec n8n_nginx nginx -t 2>/dev/null; then \
 			echo "$(GREEN)✓ Nginx configuration is valid$(RESET)"; \
 		else \
@@ -263,7 +258,7 @@ certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubl
 	fi; \
 	echo ""; \
 	echo "$(GREEN)========================================$(RESET)"; \
-	echo "For more details, check: make logs-nginx"
+	echo "For more details, check: make logs-nginx"'
 
 certbot-renew: ## Renew SSL certificates manually
 	@echo "$(GREEN)Renewing SSL certificates...$(RESET)"
