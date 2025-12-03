@@ -23,8 +23,9 @@ server {
 
 # HTTPS Server
 server {
-    listen ${NGINX_PORT} ssl http2;
-    listen [::]:443 ssl http2;
+    listen ${NGINX_PORT} ssl;
+    listen [::]:443 ssl;
+    http2 on;
 
     server_name ${NGINX_HOST};
 
