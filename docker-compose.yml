@@ -14,7 +14,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - TZ=Asia/Ho_Chi_Minh
     volumes:
-      - ${DATA_PATH_HOST}/postgres:/var/lib/postgresql/data
+      - ${DATA_PATH_HOST}/postgres:/var/lib/postgresql
     networks:
       - n8n_net
     logging:
