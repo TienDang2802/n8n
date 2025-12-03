@@ -34,6 +34,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${NGINX_HOST}/privkey.pem;
     
     # Let's Encrypt recommended SSL configuration
+    # These files are created by certbot or by the entrypoint script if they don't exist
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     

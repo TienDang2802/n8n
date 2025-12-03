@@ -1,7 +1,8 @@
 FROM nginx:alpine
 
 # Cần envsubst để render template (.conf.template → .conf)
-RUN apk add --no-cache bash gettext
+# Cần openssl để generate dhparams nếu chưa có
+RUN apk add --no-cache bash gettext openssl
 
 # Xoá default config của image nginx
 RUN rm -f /etc/nginx/conf.d/default.conf
