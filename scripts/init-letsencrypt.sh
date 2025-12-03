@@ -125,18 +125,69 @@ else
     echo -e "${GREEN}✓ Nginx container is running${NC}"
 fi
 
-# Verify nginx can serve ACME challenge
-echo -e "${BLUE}Verifying ACME challenge endpoint is accessible...${NC}"
-TEST_FILE="test-$(date +%s).txt"
-echo "test" > "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
-sleep 1
-if curl -s "http://${NGINX_HOST}/.well-known/acme-challenge/${TEST_FILE}" | grep -q "test"; then
-    echo -e "${GREEN}✓ ACME challenge endpoint is accessible${NC}"
-    rm -f "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
+# Verify nginx is listening on port 80
+echo -e "${BLUE}Verifying nginx is listening on port 80...${NC}"
+if docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -q ":80 " || \
+   docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -q ":80 "; then
+    echo -e "${GREEN}✓ Nginx is listening on port 80${NC}"
 else
-    echo -e "${YELLOW}⚠ Warning: Could not verify ACME challenge endpoint${NC}"
-    echo "This might be okay if DNS is not pointing to this server yet"
-    rm -f "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
+    echo -e "${RED}✗ Nginx is NOT listening on port 80${NC}"
+    echo "Please check nginx logs: make logs-nginx"
+    exit 1
+fi
+
+# Verify nginx can serve ACME challenge locally
+echo -e "${BLUE}Verifying ACME challenge endpoint is configured...${NC}"
+TEST_FILE="test-$(date +%s).txt"
+mkdir -p "${CERTBOT_WWW_DIR}/.well-known/acme-challenge"
+echo "test" > "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
+chmod 644 "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
+
+# Test from inside the container first
+sleep 2
+if docker exec n8n_nginx wget -q -O- "http://localhost/.well-known/acme-challenge/${TEST_FILE}" 2>/dev/null | grep -q "test"; then
+    echo -e "${GREEN}✓ ACME challenge endpoint works inside container${NC}"
+else
+    echo -e "${YELLOW}⚠ Warning: ACME challenge endpoint not working inside container${NC}"
+    echo "Checking nginx configuration..."
+    docker exec n8n_nginx nginx -t
+    docker exec n8n_nginx cat /etc/nginx/conf.d/n8n.conf | grep -A 5 "acme-challenge" || echo "ACME challenge location not found in config"
+fi
+
+# Test from host (if DNS is configured)
+echo -e "${BLUE}Testing external accessibility...${NC}"
+if curl -s --max-time 5 "http://${NGINX_HOST}/.well-known/acme-challenge/${TEST_FILE}" 2>/dev/null | grep -q "test"; then
+    echo -e "${GREEN}✓ ACME challenge endpoint is accessible from internet${NC}"
+    EXTERNAL_ACCESS=true
+else
+    echo -e "${YELLOW}⚠ Warning: Could not verify external accessibility${NC}"
+    echo "This could mean:"
+    echo "  1. DNS is not pointing to this server yet"
+    echo "  2. Port 80 is blocked by firewall"
+    echo "  3. Server IP doesn't match DNS A record"
+    echo ""
+    echo "Checking server IP..."
+    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown")
+    echo "  Server IP: ${SERVER_IP}"
+    echo "  Domain: ${NGINX_HOST}"
+    echo ""
+    echo "Please verify:"
+    echo "  1. DNS A record for ${NGINX_HOST} points to ${SERVER_IP}"
+    echo "  2. Port 80 is open in firewall: sudo ufw allow 80/tcp"
+    echo "  3. Port 80 is not blocked by cloud provider security groups"
+    EXTERNAL_ACCESS=false
+fi
+
+rm -f "${CERTBOT_WWW_DIR}/.well-known/acme-challenge/${TEST_FILE}"
+
+if [ "$EXTERNAL_ACCESS" = "false" ]; then
+    echo ""
+    read -p "Continue anyway? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted. Please fix the issues above and try again."
+        exit 1
+    fi
 fi
 
 # Get network name from docker-compose
@@ -165,12 +216,42 @@ if docker run --rm \
     echo -e "${GREEN}✓ Certificate request completed${NC}"
 else
     echo -e "${RED}Error: Certificate request failed${NC}"
-    echo "Common issues:"
-    echo "  1. Domain DNS is not pointing to this server"
-    echo "  2. Port 80 is not accessible from the internet"
-    echo "  3. Nginx is not serving /.well-known/acme-challenge/ correctly"
     echo ""
-    echo "Check nginx logs: make logs-nginx"
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}Troubleshooting Steps:${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo ""
+    echo "1. Check if nginx is running:"
+    echo "   ${BLUE}docker ps | grep nginx${NC}"
+    echo ""
+    echo "2. Check if nginx is listening on port 80:"
+    echo "   ${BLUE}docker exec n8n_nginx netstat -tlnp | grep 80${NC}"
+    echo "   or"
+    echo "   ${BLUE}sudo netstat -tlnp | grep 80${NC}"
+    echo ""
+    echo "3. Check firewall (if using ufw):"
+    echo "   ${BLUE}sudo ufw status${NC}"
+    echo "   ${BLUE}sudo ufw allow 80/tcp${NC}"
+    echo ""
+    echo "4. Check if port 80 is accessible from internet:"
+    echo "   ${BLUE}curl -I http://${NGINX_HOST}/.well-known/acme-challenge/test${NC}"
+    echo ""
+    echo "5. Verify DNS points to this server:"
+    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown")
+    echo "   ${BLUE}dig ${NGINX_HOST}${NC}"
+    echo "   Server IP should be: ${SERVER_IP}"
+    echo ""
+    echo "6. Check nginx configuration:"
+    echo "   ${BLUE}docker exec n8n_nginx nginx -t${NC}"
+    echo "   ${BLUE}docker exec n8n_nginx cat /etc/nginx/conf.d/n8n.conf${NC}"
+    echo ""
+    echo "7. Check nginx logs:"
+    echo "   ${BLUE}make logs-nginx${NC}"
+    echo ""
+    echo "8. Test ACME challenge endpoint manually:"
+    echo "   ${BLUE}echo 'test' > cert/nginx/certbot/.well-known/acme-challenge/test${NC}"
+    echo "   ${BLUE}curl http://${NGINX_HOST}/.well-known/acme-challenge/test${NC}"
+    echo ""
     exit 1
 fi
 

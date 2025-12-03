@@ -172,6 +172,76 @@ certbot-init: ## Khởi tạo SSL certificate với certbot (cần set NGINX_HOS
 	fi
 	@bash scripts/init-letsencrypt.sh
 
+certbot-diagnose: ## Chạy diagnostics để kiểm tra cấu hình SSL (troubleshooting)
+	@if [ ! -f $(ENV_FILE) ]; then \
+		echo "$(YELLOW)⚠ .env file not found. Run 'make setup' first$(RESET)"; \
+		exit 1; \
+	fi
+	@set -a; \
+	. $(ENV_FILE); \
+	set +a; \
+	echo "$(GREEN)========================================$(RESET)"; \
+	echo "$(GREEN)SSL Certificate Diagnostics$(RESET)"; \
+	echo "$(GREEN)========================================$(RESET)"; \
+	echo ""; \
+	echo "$(YELLOW)1. Checking nginx container...$(RESET)"; \
+	if docker ps --format '{{.Names}}' | grep -q "^n8n_nginx$$"; then \
+		echo "$(GREEN)✓ Nginx container is running$(RESET)"; \
+	else \
+		echo "$(RED)✗ Nginx container is NOT running$(RESET)"; \
+		echo "   Run: make up-prod"; \
+	fi; \
+	echo ""; \
+	echo "$(YELLOW)2. Checking port 80 binding...$(RESET)"; \
+	if docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -q ":80 " || \
+	   docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -q ":80 "; then \
+		echo "$(GREEN)✓ Nginx is listening on port 80$(RESET)"; \
+	else \
+		echo "$(RED)✗ Nginx is NOT listening on port 80$(RESET)"; \
+	fi; \
+	echo ""; \
+	echo "$(YELLOW)3. Checking firewall (ufw)...$(RESET)"; \
+	if command -v ufw >/dev/null 2>&1; then \
+		if sudo ufw status | grep -q "80/tcp"; then \
+			echo "$(GREEN)✓ Port 80 is allowed in ufw$(RESET)"; \
+		else \
+			echo "$(YELLOW)⚠ Port 80 might not be allowed in ufw$(RESET)"; \
+			echo "   Run: sudo ufw allow 80/tcp"; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠ ufw not found, check your firewall manually$(RESET)"; \
+	fi; \
+	echo ""; \
+	echo "$(YELLOW)4. Checking DNS...$(RESET)"; \
+	SERVER_IP=$$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "unknown"); \
+	echo "   Server IP: $$SERVER_IP"; \
+	echo "   Domain: $${NGINX_HOST:-not set}"; \
+	if [ -n "$${NGINX_HOST}" ]; then \
+		echo "   Run: dig $${NGINX_HOST} to verify DNS"; \
+	fi; \
+	echo ""; \
+	echo "$(YELLOW)5. Testing ACME challenge endpoint...$(RESET)"; \
+	if [ -n "$${NGINX_HOST}" ]; then \
+		if curl -s --max-time 5 "http://$${NGINX_HOST}/.well-known/acme-challenge/test" >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ Endpoint is accessible from internet$(RESET)"; \
+		else \
+			echo "$(RED)✗ Endpoint is NOT accessible from internet$(RESET)"; \
+			echo "   This is likely the cause of the certificate failure"; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠ NGINX_HOST not set in .env$(RESET)"; \
+	fi; \
+	echo ""; \
+	echo "$(YELLOW)6. Checking nginx configuration...$(RESET)"; \
+	if docker exec n8n_nginx nginx -t 2>/dev/null; then \
+		echo "$(GREEN)✓ Nginx configuration is valid$(RESET)"; \
+	else \
+		echo "$(RED)✗ Nginx configuration has errors$(RESET)"; \
+	fi; \
+	echo ""; \
+	echo "$(GREEN)========================================$(RESET)"; \
+	echo "For more details, check: make logs-nginx"
+
 certbot-renew: ## Renew SSL certificates manually
 	@echo "$(GREEN)Renewing SSL certificates...$(RESET)"
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec certbot certbot renew
