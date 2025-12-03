@@ -14,7 +14,7 @@ make setup
 
 ### PostgreSQL
 ```env
-POSTGRES_VERSION=alpine          # PostgreSQL version (alpine recommended)
+POSTGRES_VERSION=15-alpine       # PostgreSQL version (15-alpine recommended for stability)
 POSTGRES_USER=n8n                # Database user
 POSTGRES_PASSWORD=your_password  # Database password (CHANGE THIS!)
 POSTGRES_DB=n8n                  # Database name
@@ -81,7 +81,7 @@ POSTGRES_MAX_WAL_SIZE=4GB
 
 ```env
 # PostgreSQL
-POSTGRES_VERSION=alpine
+POSTGRES_VERSION=15-alpine
 POSTGRES_USER=n8n
 POSTGRES_PASSWORD=ChangeMe123!StrongPassword
 POSTGRES_DB=n8n
@@ -111,7 +111,7 @@ CERT_PATH=./cert
 
 ```env
 # PostgreSQL
-POSTGRES_VERSION=alpine
+POSTGRES_VERSION=15-alpine
 POSTGRES_USER=n8n
 POSTGRES_PASSWORD=ChangeMe123!StrongPassword
 POSTGRES_DB=n8n

@@ -1,4 +1,4 @@
-ARG POSTGRES_VERSION=alpine
+ARG POSTGRES_VERSION=15-alpine
 FROM postgres:${POSTGRES_VERSION}
 
 # Set timezone
