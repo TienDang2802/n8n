@@ -40,10 +40,44 @@ build: ## Build Docker images
 	@echo "$(GREEN)Building Docker images...$(RESET)"
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) build
 
-up: ## Khởi động tất cả services (detached mode)
+up: ## Khởi động tất cả services (detached mode) - uses NGINX_ENV from .env
 	@echo "$(GREEN)Starting services...$(RESET)"
+	@if [ -f $(ENV_FILE) ]; then \
+		set -a; \
+		. $(ENV_FILE); \
+		set +a; \
+		echo "$(YELLOW)Using NGINX_ENV=$${NGINX_ENV:-prod}$(RESET)"; \
+	fi
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo "$(GREEN)Services started!$(RESET)"
+	@echo "$(YELLOW)Run 'make logs' to view logs$(RESET)"
+
+up-dev: ## Khởi động services cho DEV environment (HTTP only, no SSL)
+	@echo "$(GREEN)Starting services in DEV mode (HTTP only)...$(RESET)"
+	@if [ -f $(ENV_FILE) ]; then \
+		cp $(ENV_FILE) $(ENV_FILE).bak; \
+		sed -i.bak 's/^NGINX_ENV=.*/NGINX_ENV=dev/' $(ENV_FILE) 2>/dev/null || \
+		sed -i '' 's/^NGINX_ENV=.*/NGINX_ENV=dev/' $(ENV_FILE) 2>/dev/null || \
+		echo "NGINX_ENV=dev" >> $(ENV_FILE); \
+		rm -f $(ENV_FILE).bak; \
+	fi
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
+	@echo "$(GREEN)✓ Services started in DEV mode$(RESET)"
+	@echo "$(YELLOW)Run 'make logs' to view logs$(RESET)"
+	@echo "$(YELLOW)Access n8n at: http://localhost$(RESET)"
+
+up-prod: ## Khởi động services cho PROD environment (HTTPS with SSL)
+	@echo "$(GREEN)Starting services in PROD mode (HTTPS)...$(RESET)"
+	@if [ -f $(ENV_FILE) ]; then \
+		cp $(ENV_FILE) $(ENV_FILE).bak; \
+		sed -i.bak 's/^NGINX_ENV=.*/NGINX_ENV=prod/' $(ENV_FILE) 2>/dev/null || \
+		sed -i '' 's/^NGINX_ENV=.*/NGINX_ENV=prod/' $(ENV_FILE) 2>/dev/null || \
+		echo "NGINX_ENV=prod" >> $(ENV_FILE); \
+		rm -f $(ENV_FILE).bak; \
+	fi
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
+	@echo "$(GREEN)✓ Services started in PROD mode$(RESET)"
+	@echo "$(YELLOW)Note: If this is first time, run 'make certbot-init' after DNS is configured$(RESET)"
 	@echo "$(YELLOW)Run 'make logs' to view logs$(RESET)"
 
 start: up ## Alias cho up

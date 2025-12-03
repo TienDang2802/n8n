@@ -53,21 +53,14 @@ services:
       - TZ=Asia/Ho_Chi_Minh
       # Performance optimizations
       - N8N_METRICS=true
-      - EXECUTIONS_PROCESS=main
-      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
-      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
-      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+
     depends_on:
       - db
     volumes:
       - ${DATA_PATH_HOST}/n8n:/home/node/.n8n
     networks:
       - n8n_net
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+
 
   nginx:
     build:
@@ -90,6 +83,12 @@ services:
     restart: always
     networks:
       - n8n_net
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     logging:
       driver: "json-file"
       options:
@@ -112,6 +111,8 @@ services:
           certbot renew --webroot -w /var/www/certbot --quiet || true;
           sleep 12h & wait $$!;
         done
+    depends_on:
+      - nginx
     networks:
       - n8n_net
     logging:

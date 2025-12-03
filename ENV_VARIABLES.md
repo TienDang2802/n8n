@@ -77,6 +77,38 @@ POSTGRES_MAX_WAL_SIZE=4GB
 
 ## Ví dụ file .env hoàn chỉnh
 
+### Development (Localhost, HTTP only)
+
+```env
+# PostgreSQL
+POSTGRES_VERSION=alpine
+POSTGRES_USER=n8n
+POSTGRES_PASSWORD=ChangeMe123!StrongPassword
+POSTGRES_DB=n8n
+
+# n8n
+N8N_VERSION=latest
+N8N_USER=admin
+N8N_PASSWORD=ChangeMe123!StrongPassword
+N8N_HOST=localhost
+N8N_PROTOCOL=http
+
+# Nginx
+NGINX_ENV=dev
+NGINX_HOST=localhost
+NGINX_PORT=80
+
+# Paths
+DATA_PATH_HOST=./data
+NGINX_HOST_LOG_PATH=./logs/nginx
+CERT_PATH=./cert
+
+# SSL (not needed for dev, but can be set)
+# SSL_EMAIL=admin@example.com
+```
+
+### Production (VPS with Domain, HTTPS)
+
 ```env
 # PostgreSQL
 POSTGRES_VERSION=alpine
@@ -101,7 +133,7 @@ DATA_PATH_HOST=./data
 NGINX_HOST_LOG_PATH=./logs/nginx
 CERT_PATH=./cert
 
-# SSL
+# SSL (required for production)
 SSL_EMAIL=admin@example.com
 ```
 

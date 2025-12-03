@@ -14,39 +14,69 @@ This repository provides a production-ready Docker-based setup for running **n8n
 
 ## 🚀 Quick Start
 
-### Sử dụng Makefile (Khuyến nghị)
+### Development (Localhost, HTTP only)
+
+For local development without SSL certificates:
 
 ```sh
-# Khởi tạo project
+# 1. Initialize project
 make setup
 
-# Chỉnh sửa file .env với cấu hình của bạn
-# Đảm bảo set NGINX_HOST và SSL_EMAIL cho SSL
+# 2. Edit .env file for DEV
 nano .env
+# Set:
+#   NGINX_ENV=dev
+#   NGINX_HOST=localhost
+#   NGINX_PORT=80
+#   N8N_HOST=localhost
+#   N8N_PROTOCOL=http
 
-# Build và khởi động services
-make up
+# 3. Start services in DEV mode
+make up-dev
 
-# Khởi tạo SSL certificate (chỉ cần chạy lần đầu)
-make certbot-init
-
-# Xem logs
-make logs
+# 4. Access n8n at http://localhost
 ```
 
-### Hoặc sử dụng Docker Compose trực tiếp
+### Production (VPS with Domain, HTTPS)
+
+For production deployment with SSL certificates:
 
 ```sh
-# Tạo file .env từ template (xem ENV_VARIABLES.md)
-cp env.example .env
-# Chỉnh sửa .env file với cấu hình của bạn
+# 1. Initialize project
+make setup
+
+# 2. Edit .env file for PROD
 nano .env
+# Set:
+#   NGINX_ENV=prod
+#   NGINX_HOST=your-domain.com
+#   NGINX_PORT=443
+#   N8N_HOST=your-domain.com
+#   N8N_PROTOCOL=https
+#   SSL_EMAIL=your-email@example.com
 
-# Build và khởi động services
+# 3. Ensure DNS A record points to your VPS IP
+dig your-domain.com
+
+# 4. Start services in PROD mode (HTTP-only initially)
+make up-prod
+
+# 5. Initialize SSL certificates
+make certbot-init
+
+# 6. Restart nginx to load HTTPS configuration
+make restart
+
+# 7. Verify HTTPS is working
+curl -I https://your-domain.com
+```
+
+### Using Docker Compose directly
+
+```sh
+# Set environment variables in .env first
+# Then:
 docker compose up -d --build
-
-# Xem logs
-docker compose logs -f
 ```
 
 ---
@@ -97,7 +127,9 @@ Sử dụng `make help` để xem tất cả các lệnh có sẵn:
 - `make rebuild` - Rebuild images và khởi động lại
 
 ### Service Management
-- `make up` hoặc `make start` - Khởi động tất cả services
+- `make up` hoặc `make start` - Khởi động tất cả services (uses NGINX_ENV from .env)
+- `make up-dev` - Khởi động services cho DEV environment (HTTP only, no SSL)
+- `make up-prod` - Khởi động services cho PROD environment (HTTPS with SSL)
 - `make down` hoặc `make stop` - Dừng services
 - `make restart` - Khởi động lại services
 - `make ps` hoặc `make status` - Xem trạng thái containers
@@ -140,38 +172,49 @@ Sử dụng `make help` để xem tất cả các lệnh có sẵn:
 
 ## 🔐 SSL Certificate Setup
 
+### How It Works
+
+The setup automatically handles SSL certificate initialization:
+
+1. **First Start (PROD mode)**: Nginx starts with HTTP-only configuration that allows ACME challenges
+2. **After `make certbot-init`**: Certificates are created and nginx automatically switches to HTTPS configuration
+3. **Automatic Renewal**: Certbot renews certificates every 12 hours, nginx reloads every 6 hours
+
 ### Initial Setup (First Time)
 
 1. **Configure environment variables** in `.env`:
    ```env
+   NGINX_ENV=prod
    NGINX_HOST=your-domain.com
    SSL_EMAIL=your-email@example.com
-   NGINX_ENV=prod
    N8N_PROTOCOL=https
+   N8N_HOST=your-domain.com
    ```
 
-2. **Start services** (nginx must be running for ACME challenge):
+2. **Ensure DNS is configured**: Your domain must have an A record pointing to your VPS IP
+
+3. **Start services** (nginx will start with HTTP-only config):
    ```sh
-   make up
+   make up-prod
    ```
 
-3. **Initialize SSL certificates**:
+4. **Initialize SSL certificates**:
    ```sh
    make certbot-init
    ```
    
    This script will:
-   - Request SSL certificate from Let's Encrypt
+   - Verify nginx is running and can serve ACME challenges
+   - Request SSL certificate from Let's Encrypt using HTTP-01 challenge
    - Generate DH parameters for enhanced security
    - Download Let's Encrypt recommended SSL configuration
-   - Ensure nginx is running for the ACME challenge
 
-4. **Restart nginx** to load SSL configuration:
+5. **Restart nginx** to load HTTPS configuration:
    ```sh
    make restart
-   # or
-   docker compose restart nginx
    ```
+   
+   After restart, nginx will automatically detect the certificates and use the HTTPS configuration.
 
 ### Automatic Certificate Renewal
 

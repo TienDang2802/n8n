@@ -1,22 +1,23 @@
 FROM nginx:alpine
 
-# Cần envsubst để render template (.conf.template → .conf)
-# Cần openssl để generate dhparams nếu chưa có
-RUN apk add --no-cache bash gettext openssl
+# Install required packages
+# - bash: for entrypoint script
+# - gettext: for envsubst (template variable substitution)
+# - openssl: for generating dhparams
+# - curl: for downloading SSL options in init script
+RUN apk add --no-cache bash gettext openssl curl
 
-# Xoá default config của image nginx
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# Copy global nginx.conf
+# Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy các template (dev/prod)
-COPY templates /etc/nginx/templates
+# Copy templates
+COPY templates/ /etc/nginx/templates/
 
-# Copy entrypoint để render template rồi chạy nginx
-COPY entrypoint.sh /docker-entrypoint-custom.sh
-RUN chmod +x /docker-entrypoint-custom.sh
+# Copy entrypoint script and make it executable
+COPY entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80 443
 
-CMD ["/docker-entrypoint-custom.sh"]
+# Use our custom entrypoint
+ENTRYPOINT ["/docker-entrypoint.sh"]
