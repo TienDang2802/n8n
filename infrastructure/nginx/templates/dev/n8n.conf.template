@@ -10,6 +10,9 @@ server {
 
     client_max_body_size 100M;
 
+    # Using variable in proxy_pass forces dynamic DNS resolution
+    set $n8n_backend "http://n8n:5678";
+
     # Proxy headers
     proxy_set_header Host               $host;
     proxy_set_header X-Real-IP          $remote_addr;
@@ -24,19 +27,19 @@ server {
     # Health check endpoint
     location = /healthz {
         access_log off;
-        proxy_pass http://n8n:5678/;
+        proxy_pass $n8n_backend/;
         proxy_set_header Host $host;
     }
 
     location / {
-        proxy_pass http://n8n:5678/;
+        proxy_pass $n8n_backend/;
     }
 
     location ~ ^/webhook/.*$ {
-        proxy_pass http://n8n:5678;
+        proxy_pass $n8n_backend;
     }
 
     location ~ ^/webhook-test/.*$ {
-        proxy_pass http://n8n:5678;
+        proxy_pass $n8n_backend;
     }
 }

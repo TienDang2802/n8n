@@ -60,6 +60,12 @@ services:
       - ${DATA_PATH_HOST}/n8n:/home/node/.n8n
     networks:
       - n8n_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
 
   nginx:
@@ -79,7 +85,8 @@ services:
       - ${CERT_PATH}/nginx/certbot:/var/www/certbot
       - ./infrastructure/nginx/99-autoreload.sh:/docker-entrypoint.d/99-autoreload.sh:ro
     depends_on:
-      - n8n
+      n8n:
+        condition: service_started
     restart: always
     networks:
       - n8n_net
