@@ -45,7 +45,7 @@ CERT_PATH=./cert                  # Path for SSL certificates
 
 ### SSL Certificate (Let's Encrypt)
 ```env
-EMAIL=your-email@example.com      # Email for Let's Encrypt notifications
+SSL_EMAIL=your-email@example.com      # Email for Let's Encrypt notifications
 ```
 
 ## Biến môi trường tùy chọn
@@ -102,7 +102,7 @@ NGINX_HOST_LOG_PATH=./logs/nginx
 CERT_PATH=./cert
 
 # SSL
-EMAIL=admin@example.com
+SSL_EMAIL=admin@example.com
 ```
 
 ## Lưu ý

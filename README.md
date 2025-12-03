@@ -6,8 +6,9 @@ This repository provides a production-ready Docker-based setup for running **n8n
 
 - **n8n**: Workflow automation platform
 - **PostgreSQL**: Database for n8n data persistence
-- **Nginx**: Reverse proxy with SSL/TLS termination
-- **Certbot**: Automatic SSL certificate renewal
+- **Nginx**: Reverse proxy with SSL/TLS termination and automatic reload
+- **Certbot**: Automatic SSL certificate renewal (every 12 hours)
+- **Auto-reload**: Nginx automatically reloads configuration every 6 hours to pick up certificate changes
 
 ---
 
@@ -20,10 +21,14 @@ This repository provides a production-ready Docker-based setup for running **n8n
 make setup
 
 # Chỉnh sửa file .env với cấu hình của bạn
+# Đảm bảo set NGINX_HOST và SSL_EMAIL cho SSL
 nano .env
 
 # Build và khởi động services
 make up
+
+# Khởi tạo SSL certificate (chỉ cần chạy lần đầu)
+make certbot-init
 
 # Xem logs
 make logs
@@ -66,12 +71,18 @@ docker compose logs -f
 │       ├── Dockerfile          # Nginx Dockerfile
 │       ├── nginx.conf          # Nginx main configuration
 │       ├── entrypoint.sh       # Nginx entrypoint script
+│       ├── 99-autoreload.sh    # Auto-reload script for SSL certs
 │       └── templates/
-│           ├── dev/            # Development templates
-│           └── prod/          # Production templates
+│           ├── dev/            # Development templates (no SSL)
+│           └── prod/          # Production templates (with SSL)
+├── scripts/
+│   └── init-letsencrypt.sh     # Initial SSL certificate setup script
 ├── data/                       # Persistent data (created by setup)
 ├── logs/                       # Application logs (created by setup)
 └── cert/                       # SSL certificates (created by setup)
+│   └── nginx/
+│       ├── letsencrypt/        # Let's Encrypt certificates
+│       └── certbot/            # Certbot webroot directory
 ```
 
 ---
@@ -109,8 +120,13 @@ Sử dụng `make help` để xem tất cả các lệnh có sẵn:
 - `make restore-db FILE=backup.sql` - Restore database từ file backup
 
 ### SSL Certificate
-- `make certbot-init` - Khởi tạo SSL certificate (cần set NGINX_HOST và EMAIL trong .env)
-- `make certbot-renew` - Renew SSL certificates
+- `make certbot-init` - Khởi tạo SSL certificate lần đầu (cần set NGINX_HOST và SSL_EMAIL trong .env)
+  - Script này sẽ:
+    - Request certificate từ Let's Encrypt
+    - Generate DH parameters
+    - Download Let's Encrypt recommended SSL options
+    - Tự động start nginx nếu chưa chạy
+- `make certbot-renew` - Renew SSL certificates manually (thường không cần, certbot tự động renew mỗi 12h)
 
 ### Cleanup
 - `make clean` - Xóa containers và networks (giữ volumes)
@@ -119,6 +135,63 @@ Sử dụng `make help` để xem tất cả các lệnh có sẵn:
 ### Other
 - `make pull` - Pull latest images
 - `make update` - Pull và rebuild images
+
+---
+
+## 🔐 SSL Certificate Setup
+
+### Initial Setup (First Time)
+
+1. **Configure environment variables** in `.env`:
+   ```env
+   NGINX_HOST=your-domain.com
+   SSL_EMAIL=your-email@example.com
+   NGINX_ENV=prod
+   N8N_PROTOCOL=https
+   ```
+
+2. **Start services** (nginx must be running for ACME challenge):
+   ```sh
+   make up
+   ```
+
+3. **Initialize SSL certificates**:
+   ```sh
+   make certbot-init
+   ```
+   
+   This script will:
+   - Request SSL certificate from Let's Encrypt
+   - Generate DH parameters for enhanced security
+   - Download Let's Encrypt recommended SSL configuration
+   - Ensure nginx is running for the ACME challenge
+
+4. **Restart nginx** to load SSL configuration:
+   ```sh
+   make restart
+   # or
+   docker compose restart nginx
+   ```
+
+### Automatic Certificate Renewal
+
+The setup includes automatic certificate renewal:
+
+- **Certbot** renews certificates every 12 hours
+- **Nginx auto-reload** runs every 6 hours to pick up certificate changes
+- No manual intervention required after initial setup
+
+The auto-reload script (`99-autoreload.sh`) is automatically mounted into the nginx container and runs in the background.
+
+### SSL Configuration
+
+The production nginx template uses Let's Encrypt recommended SSL settings:
+- Modern TLS protocols (TLSv1.2, TLSv1.3)
+- Strong cipher suites
+- OCSP stapling
+- Security headers (HSTS, etc.)
+
+Certificates are stored in: `cert/nginx/letsencrypt/`
 
 ---
 
@@ -152,7 +225,7 @@ Cần cấu hình các biến môi trường trong file `.env`. Xem chi tiết t
   - `CERT_PATH` - Path for SSL certificates
 
 - **SSL**: 
-  - `EMAIL` - Email for Let's Encrypt notifications
+  - `SSL_EMAIL` - Email for Let's Encrypt notifications
 
 ### Tạo file .env:
 
@@ -213,14 +286,59 @@ make restore-db FILE=backups/backup_20240101_120000.sql
 ```
 
 ### SSL Certificate Issues
+
+#### Certificate không được tạo
 ```sh
+# Kiểm tra nginx đã chạy chưa (cần cho ACME challenge)
+make ps
+
+# Kiểm tra domain đã trỏ về server chưa
+dig your-domain.com
+
+# Xem certbot logs
+make logs-certbot
+
+# Thử lại init
+make certbot-init
+```
+
+#### Certificate không tự động renew
+```sh
+# Kiểm tra certbot container đang chạy
+docker ps | grep certbot
+
 # Xem certbot logs
 make logs-certbot
 
 # Manually renew certificate
 make certbot-renew
 
-# Initialize certificate (first time)
+# Kiểm tra nginx auto-reload
+docker logs n8n_nginx | grep "reloaded"
+```
+
+#### Nginx không load certificate
+```sh
+# Kiểm tra certificate files tồn tại
+ls -la cert/nginx/letsencrypt/live/your-domain.com/
+
+# Test nginx configuration
+docker exec n8n_nginx nginx -t
+
+# Manually reload nginx
+docker exec n8n_nginx nginx -s reload
+
+# Kiểm tra nginx logs
+make logs-nginx
+```
+
+#### Initialize certificate (first time)
+```sh
+# Đảm bảo .env có NGINX_HOST và SSL_EMAIL
+# Đảm bảo nginx đang chạy
+make up
+
+# Initialize certificate
 make certbot-init
 ```
 
@@ -242,16 +360,39 @@ make certbot-init
 
 - **[ENV_VARIABLES.md](ENV_VARIABLES.md)** - Chi tiết về environment variables
 
+## 🔄 How SSL Auto-Renewal Works
+
+This setup implements automatic SSL certificate renewal based on the approach described in:
+[Setup SSL with Certbot + Nginx in a Dockerized App](https://dev.to/marrouchi/the-challenge-about-ssl-in-docker-containers-no-one-talks-about-32gh)
+
+### Components:
+
+1. **Certbot Service**: Runs continuously, renews certificates every 12 hours
+2. **Nginx Auto-Reload Script**: Runs in background, reloads nginx every 6 hours
+3. **Let's Encrypt Recommended Config**: Uses official SSL configuration files
+
+### Flow:
+
+```
+Certbot renews cert → Certificates updated → Nginx auto-reload picks up changes → SSL active
+```
+
+This ensures certificates are always up-to-date without manual intervention.
+
 ---
 
 ## 🔒 Security Best Practices
 
 1. **Change default passwords**: Luôn thay đổi passwords mặc định trong `.env`
 2. **Use strong passwords**: Sử dụng passwords mạnh cho PostgreSQL và n8n
-3. **SSL/TLS**: Luôn sử dụng HTTPS trong production (`NGINX_ENV=prod`)
+3. **SSL/TLS**: 
+   - Luôn sử dụng HTTPS trong production (`NGINX_ENV=prod`)
+   - Certificates tự động renew mỗi 12 giờ
+   - Nginx tự động reload để áp dụng certificates mới
 4. **Firewall**: Chỉ mở ports 80 và 443, không expose n8n port 5678
 5. **Regular updates**: Cập nhật Docker images định kỳ: `make update`
 6. **Backup**: Thực hiện backup database thường xuyên: `make backup-db`
+7. **Domain validation**: Đảm bảo domain đã trỏ về server trước khi chạy `certbot-init`
 
 ---
 

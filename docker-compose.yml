@@ -84,6 +84,7 @@ services:
       - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
       - ${CERT_PATH}/nginx/letsencrypt:/etc/letsencrypt
       - ${CERT_PATH}/nginx/certbot:/var/www/certbot
+      - ./infrastructure/nginx/99-autoreload.sh:/docker-entrypoint.d/99-autoreload.sh:ro
     depends_on:
       - n8n
     restart: always

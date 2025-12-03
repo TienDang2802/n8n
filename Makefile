@@ -131,30 +131,12 @@ rebuild: ## Rebuild images và khởi động lại services
 	@echo "$(GREEN)Rebuilding and restarting services...$(RESET)"
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d --build --force-recreate
 
-certbot-init: ## Khởi tạo SSL certificate với certbot (cần set DOMAIN và EMAIL trong .env)
+certbot-init: ## Khởi tạo SSL certificate với certbot (cần set NGINX_HOST và SSL_EMAIL trong .env)
 	@if [ ! -f $(ENV_FILE) ]; then \
 		echo "$(YELLOW)⚠ .env file not found. Run 'make setup' first$(RESET)"; \
 		exit 1; \
-	fi; \
-	set -a; \
-	ENV_PATH="$$(pwd)/$(ENV_FILE)"; \
-	. $$ENV_PATH; \
-	set +a; \
-	if [ -z "$$NGINX_HOST" ] || [ -z "$$EMAIL" ]; then \
-		echo "$(YELLOW)⚠ Please set NGINX_HOST and EMAIL in .env file$(RESET)"; \
-		exit 1; \
-	fi; \
-	echo "$(GREEN)Initializing SSL certificate for $$NGINX_HOST...$(RESET)"; \
-	docker run --rm -it \
-		-v $$(pwd)/cert/nginx/letsencrypt:/etc/letsencrypt \
-		-v $$(pwd)/cert/nginx/certbot:/var/www/certbot \
-		certbot/certbot certonly \
-		--webroot \
-		--webroot-path=/var/www/certbot \
-		--email $$EMAIL \
-		--agree-tos \
-		--no-eff-email \
-		-d $$NGINX_HOST
+	fi
+	@bash scripts/init-letsencrypt.sh
 
 certbot-renew: ## Renew SSL certificates manually
 	@echo "$(GREEN)Renewing SSL certificates...$(RESET)"
