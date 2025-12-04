@@ -127,11 +127,35 @@ fi
 
 # Verify nginx is listening on port 80
 echo -e "${BLUE}Verifying nginx is listening on port 80...${NC}"
-if docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -q ":80 " || \
-   docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -q ":80 "; then
+# Try multiple methods to detect port 80 listening
+PORT_80_DETECTED=false
+
+# Method 1: Try netstat (most common)
+if docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -q ":80"; then
+    PORT_80_DETECTED=true
+# Method 2: Try ss (alternative to netstat)
+elif docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -q ":80"; then
+    PORT_80_DETECTED=true
+# Method 3: Check /proc/net/tcp (hex format: 0050 = port 80)
+elif docker exec n8n_nginx sh -c "cat /proc/net/tcp 2>/dev/null | grep -q ':0050 '" 2>/dev/null; then
+    PORT_80_DETECTED=true
+# Method 4: Try to connect to port 80 via HTTP
+elif docker exec n8n_nginx wget -q -O- --spider http://localhost:80 2>/dev/null >/dev/null; then
+    PORT_80_DETECTED=true
+fi
+
+if [ "$PORT_80_DETECTED" = "true" ]; then
     echo -e "${GREEN}✓ Nginx is listening on port 80${NC}"
 else
     echo -e "${RED}✗ Nginx is NOT listening on port 80${NC}"
+    echo "Debugging information:"
+    echo "  Checking netstat output:"
+    docker exec n8n_nginx netstat -tlnp 2>/dev/null | grep -E ":(80|443)" || echo "    No netstat output"
+    echo "  Checking ss output:"
+    docker exec n8n_nginx ss -tlnp 2>/dev/null | grep -E ":(80|443)" || echo "    No ss output"
+    echo "  Checking nginx process:"
+    docker exec n8n_nginx ps aux | grep nginx | head -3 || echo "    No nginx process found"
+    echo ""
     echo "Please check nginx logs: make logs-nginx"
     exit 1
 fi
