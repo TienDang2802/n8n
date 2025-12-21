@@ -43,7 +43,7 @@ build: ## Build Docker images
 up: ## Khởi động tất cả services (detached mode) - uses NGINX_ENV from .env
 	@echo "$(GREEN)Starting services...$(RESET)"
 	@if [ -f $(ENV_FILE) ]; then \
-		NGINX_ENV_VAL=$$(grep -E '^NGINX_ENV=' $(ENV_FILE) 2>/dev/null | cut -d '=' -f2- | tr -d '"'"'"'"'"' | tr -d ' ' || echo 'prod'); \
+		NGINX_ENV_VAL=$$(grep '^NGINX_ENV=' $(ENV_FILE) 2>/dev/null | cut -d '=' -f2 | xargs || echo 'prod'); \
 		echo "$(YELLOW)Using NGINX_ENV=$${NGINX_ENV_VAL}$(RESET)"; \
 	else \
 		echo "$(YELLOW)⚠ $(ENV_FILE) not found, using default values$(RESET)"; \
