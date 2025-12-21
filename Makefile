@@ -1,4 +1,4 @@
-.PHONY: help setup build up down restart logs ps clean shell-db shell-n8n shell-nginx certbot-init certbot-renew status health
+.PHONY: help setup build up down restart logs ps clean shell-db shell-n8n shell-n8n-worker shell-n8n-runners-main shell-n8n-runners-worker shell-nginx certbot-init certbot-renew status health
 
 # Colors for output
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -101,6 +101,15 @@ logs-db: ## Xem logs của database
 logs-n8n: ## Xem logs của n8n
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f n8n
 
+logs-n8n-worker: ## Xem logs của n8n-worker
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f n8n-worker
+
+logs-n8n-runners-main: ## Xem logs của n8n-runners-main
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f n8n-runners-main
+
+logs-n8n-runners-worker: ## Xem logs của n8n-runners-worker
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f n8n-runners-worker
+
 logs-nginx: ## Xem logs của nginx
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs -f nginx
 
@@ -125,7 +134,16 @@ shell-db: ## Truy cập shell của PostgreSQL container
 	docker exec -it n8n_postgres /bin/bash || docker exec -it n8n_postgres /bin/sh
 
 shell-n8n: ## Truy cập shell của n8n container
-	docker exec -it n8n /bin/sh
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec n8n /bin/sh
+
+shell-n8n-worker: ## Truy cập shell của n8n-worker container
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec n8n-worker /bin/sh
+
+shell-n8n-runners-main: ## Truy cập shell của n8n-runners-main container
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec n8n-runners-main /bin/sh
+
+shell-n8n-runners-worker: ## Truy cập shell của n8n-runners-worker container
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) exec n8n-runners-worker /bin/sh
 
 shell-nginx: ## Truy cập shell của nginx container
 	docker exec -it n8n_nginx /bin/sh
