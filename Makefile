@@ -43,10 +43,11 @@ build: ## Build Docker images
 up: ## Khởi động tất cả services (detached mode) - uses NGINX_ENV from .env
 	@echo "$(GREEN)Starting services...$(RESET)"
 	@if [ -f $(ENV_FILE) ]; then \
-		set -a; \
-		. $(ENV_FILE); \
-		set +a; \
-		echo "$(YELLOW)Using NGINX_ENV=$${NGINX_ENV:-prod}$(RESET)"; \
+		NGINX_ENV_VAL=$$(grep -E '^NGINX_ENV=' $(ENV_FILE) 2>/dev/null | cut -d '=' -f2- | tr -d '"'"'"'"'"' | tr -d ' ' || echo 'prod'); \
+		echo "$(YELLOW)Using NGINX_ENV=$${NGINX_ENV_VAL}$(RESET)"; \
+	else \
+		echo "$(YELLOW)⚠ $(ENV_FILE) not found, using default values$(RESET)"; \
+		echo "$(YELLOW)Run 'make setup' to create $(ENV_FILE)$(RESET)"; \
 	fi
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) up -d
 	@echo "$(GREEN)Services started!$(RESET)"
@@ -54,8 +55,12 @@ up: ## Khởi động tất cả services (detached mode) - uses NGINX_ENV from 
 
 up-dev: ## Khởi động services cho DEV environment (HTTP only, no SSL)
 	@echo "$(GREEN)Starting services in DEV mode (HTTP only)...$(RESET)"
+	@if [ ! -f $(ENV_FILE) ]; then \
+		echo "$(YELLOW)⚠ $(ENV_FILE) not found, creating with default values$(RESET)"; \
+		touch $(ENV_FILE); \
+	fi
 	@if [ -f $(ENV_FILE) ]; then \
-		cp $(ENV_FILE) $(ENV_FILE).bak; \
+		cp $(ENV_FILE) $(ENV_FILE).bak 2>/dev/null || true; \
 		sed -i.bak 's/^NGINX_ENV=.*/NGINX_ENV=dev/' $(ENV_FILE) 2>/dev/null || \
 		sed -i '' 's/^NGINX_ENV=.*/NGINX_ENV=dev/' $(ENV_FILE) 2>/dev/null || \
 		echo "NGINX_ENV=dev" >> $(ENV_FILE); \
@@ -68,8 +73,12 @@ up-dev: ## Khởi động services cho DEV environment (HTTP only, no SSL)
 
 up-prod: ## Khởi động services cho PROD environment (HTTPS with SSL)
 	@echo "$(GREEN)Starting services in PROD mode (HTTPS)...$(RESET)"
+	@if [ ! -f $(ENV_FILE) ]; then \
+		echo "$(YELLOW)⚠ $(ENV_FILE) not found, creating with default values$(RESET)"; \
+		touch $(ENV_FILE); \
+	fi
 	@if [ -f $(ENV_FILE) ]; then \
-		cp $(ENV_FILE) $(ENV_FILE).bak; \
+		cp $(ENV_FILE) $(ENV_FILE).bak 2>/dev/null || true; \
 		sed -i.bak 's/^NGINX_ENV=.*/NGINX_ENV=prod/' $(ENV_FILE) 2>/dev/null || \
 		sed -i '' 's/^NGINX_ENV=.*/NGINX_ENV=prod/' $(ENV_FILE) 2>/dev/null || \
 		echo "NGINX_ENV=prod" >> $(ENV_FILE); \
