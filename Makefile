@@ -148,14 +148,14 @@ clean: ## Xóa containers, networks (giữ volumes)
 
 clean-all: ## Xóa tất cả: containers, networks, volumes (⚠️ DANGER: mất dữ liệu)
 	@echo "$(YELLOW)⚠ WARNING: This will remove all containers, networks, and volumes!$(RESET)"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	@bash -c "read -p 'Are you sure? [y/N] ' -n 1 -r; \
 	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+	if [[ \$$REPLY =~ ^[Yy]\$$ ]]; then \
 		$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) down -v; \
-		echo "$(GREEN)All cleaned up$(RESET)"; \
+		echo '$(GREEN)All cleaned up$(RESET)'; \
 	else \
-		echo "$(YELLOW)Cancelled$(RESET)"; \
-	fi
+		echo '$(YELLOW)Cancelled$(RESET)'; \
+	fi"
 
 pull: ## Pull latest images
 	@echo "$(GREEN)Pulling latest images...$(RESET)"
@@ -295,19 +295,19 @@ restore-db: ## Restore PostgreSQL database (usage: make restore-db FILE=backup.s
 		echo "$(YELLOW)⚠ Backup file $(FILE) not found$(RESET)"; \
 		exit 1; \
 	fi
-	@set -a; \
+	@bash -c "set -a; \
 	. $(ENV_FILE); \
 	set +a; \
-	echo "$(YELLOW)⚠ WARNING: This will overwrite the current database!$(RESET)"; \
-	read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo '$(YELLOW)⚠ WARNING: This will overwrite the current database!$(RESET)'; \
+	read -p 'Are you sure? [y/N] ' -n 1 -r; \
 	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		echo "$(GREEN)Restoring database from $(FILE)...$(RESET)"; \
-		docker exec -i n8n_postgres psql -U $$POSTGRES_USER -d $$POSTGRES_DB < $(FILE); \
-		echo "$(GREEN)✓ Database restored$(RESET)"; \
+	if [[ \$$REPLY =~ ^[Yy]\$$ ]]; then \
+		echo '$(GREEN)Restoring database from $(FILE)...$(RESET)'; \
+		docker exec -i n8n_postgres psql -U \$$POSTGRES_USER -d \$$POSTGRES_DB < $(FILE); \
+		echo '$(GREEN)✓ Database restored$(RESET)'; \
 	else \
-		echo "$(YELLOW)Cancelled$(RESET)"; \
-	fi
+		echo '$(YELLOW)Cancelled$(RESET)'; \
+	fi"
 
 update: pull rebuild ## Pull latest images và rebuild
 
