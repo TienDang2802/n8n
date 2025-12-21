@@ -1,4 +1,4 @@
-.PHONY: help setup build up down restart logs ps clean shell-db shell-n8n shell-n8n-worker shell-n8n-runners-main shell-n8n-runners-worker shell-nginx certbot-init certbot-renew status health
+.PHONY: help setup build up down restart logs ps clean shell-db shell-n8n shell-n8n-worker shell-n8n-runners-main shell-n8n-runners-worker shell-nginx certbot-init certbot-renew status health diagnose-502
 
 # Colors for output
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -337,6 +337,68 @@ restore-db: ## Restore PostgreSQL database (usage: make restore-db FILE=backup.s
 	fi"
 
 update: pull rebuild ## Pull latest images và rebuild
+
+diagnose-502: ## Chẩn đoán lỗi 502 Bad Gateway
+	@echo "$(GREEN)========================================$(RESET)"
+	@echo "$(GREEN)502 Bad Gateway Diagnostics$(RESET)"
+	@echo "$(GREEN)========================================$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)1. Checking container status...$(RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) ps
+	@echo ""
+	@echo "$(YELLOW)2. Checking if n8n container is running...$(RESET)"
+	@N8N_CONTAINER=$$($(DOCKER_COMPOSE) -f $(COMPOSE_FILE) ps -q n8n 2>/dev/null); \
+	if [ -n "$$N8N_CONTAINER" ] && docker ps --format "{{.ID}}" | grep -q "$$N8N_CONTAINER"; then \
+		echo "$(GREEN)✓ n8n container is running$(RESET)"; \
+	else \
+		echo "$(RED)✗ n8n container is NOT running$(RESET)"; \
+		echo "   Run: make up"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)3. Checking if nginx can resolve n8n hostname...$(RESET)"
+	@if docker exec n8n_nginx getent hosts n8n >/dev/null 2>&1 || docker exec n8n_nginx nslookup n8n >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ n8n hostname is resolvable from nginx$(RESET)"; \
+	else \
+		echo "$(RED)✗ n8n hostname cannot be resolved from nginx$(RESET)"; \
+		echo "   This usually means network connectivity issue"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)4. Checking if n8n is listening on port 5678...$(RESET)"
+	@N8N_CONTAINER=$$($(DOCKER_COMPOSE) -f $(COMPOSE_FILE) ps -q n8n 2>/dev/null); \
+	if [ -n "$$N8N_CONTAINER" ]; then \
+		if docker exec $$N8N_CONTAINER netstat -tlnp 2>/dev/null | grep -q ":5678 " || \
+		   docker exec $$N8N_CONTAINER ss -tlnp 2>/dev/null | grep -q ":5678 " || \
+		   docker exec $$N8N_CONTAINER lsof -i :5678 >/dev/null 2>&1; then \
+			echo "$(GREEN)✓ n8n is listening on port 5678$(RESET)"; \
+		else \
+			echo "$(RED)✗ n8n is NOT listening on port 5678$(RESET)"; \
+			echo "   n8n may still be starting up. Check logs: make logs-n8n"; \
+		fi; \
+	else \
+		echo "$(RED)✗ n8n container not found$(RESET)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)5. Testing connection from nginx to n8n...$(RESET)"
+	@if docker exec n8n_nginx wget -q --spider --timeout=5 http://n8n:5678/healthz 2>/dev/null || \
+	   docker exec n8n_nginx curl -s --max-time 5 http://n8n:5678/healthz >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ nginx can connect to n8n:5678$(RESET)"; \
+	else \
+		echo "$(RED)✗ nginx cannot connect to n8n:5678$(RESET)"; \
+		echo "   This is likely the cause of the 502 error"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)6. Checking nginx error logs...$(RESET)"
+	@docker exec n8n_nginx tail -n 20 /var/log/nginx/error.log 2>/dev/null || echo "$(YELLOW)⚠ Could not read nginx error logs$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)7. Checking n8n logs (last 10 lines)...$(RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) logs --tail=10 n8n 2>/dev/null || echo "$(YELLOW)⚠ Could not read n8n logs$(RESET)"
+	@echo ""
+	@echo "$(GREEN)========================================$(RESET)"
+	@echo "$(YELLOW)Common fixes:$(RESET)"
+	@echo "  1. Wait for n8n to fully start: make logs-n8n"
+	@echo "  2. Restart services: make restart"
+	@echo "  3. Check if database is ready: make logs-db"
+	@echo "  4. Rebuild if needed: make rebuild"
 
 .DEFAULT_GOAL := help
 

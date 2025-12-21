@@ -99,10 +99,14 @@ services:
 
   n8n:
     <<: *shared
+    networks:
+      - n8n_net
 
   n8n-worker:
     <<: *shared
     command: worker
+    networks:
+      - n8n_net
     depends_on:
       - n8n
 
@@ -112,6 +116,8 @@ services:
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    networks:
+      - n8n_net
     depends_on:
       - n8n
 
@@ -121,6 +127,8 @@ services:
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    networks:
+      - n8n_net
     depends_on:
       - n8n-worker
 
