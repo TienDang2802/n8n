@@ -1,4 +1,54 @@
-version: "3.8"
+# -----------------------------------------------------------------------------
+# Shared configuration for all n8n containers
+# -----------------------------------------------------------------------------
+x-shared: &shared
+  build:
+    context: ./infrastructure/n8n
+    args:
+      N8N_VERSION: ${N8N_VERSION:-latest}
+  restart: always
+  # should run n8n in internal network, should not expose
+  # If debug local, open "5678:5678"
+  # ports:
+  #   - "5678:5678"
+  environment:
+    # DB
+    - DB_TYPE=postgresdb
+    - DB_POSTGRESDB_HOST=db
+    - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+    - DB_POSTGRESDB_USER=${POSTGRES_USER}
+    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+    # --- Execution/Queue mode ---
+    - EXECUTIONS_MODE=queue
+    - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
+    - QUEUE_HEALTH_CHECK_ACTIVE=true
+    # --- Redis (Bull queue backend) ---
+    - QUEUE_BULL_REDIS_HOST=redis
+    - QUEUE_BULL_REDIS_PORT=${REDIS_PORT}
+    - QUEUE_HEALTH_CHECK_ACTIVE=true
+    # --- Security/Runtime ---
+    - N8N_ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+    - N8N_RESTRICT_FILE_ACCESS_TO=/home/node
+    - N8N_GIT_NODE_DISABLE_BARE_REPOS=true
+    # --- Networking/Reverse Proxy ---
+    - N8N_HOST=${N8N_HOST}
+    - N8N_PROTOCOL=${N8N_PROTOCOL}
+    - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}
+    - TZ=Asia/Ho_Chi_Minh
+    # Performance optimizations
+    - N8N_METRICS=true
+  links:
+    - db
+    - redis
+  volumes:
+    - ${DATA_PATH_HOST}/n8n/n8n_storage:/home/node/.n8n
+    - ${DATA_PATH_HOST}/n8n/n8n-files:/home/node/.n8n-files
+  depends_on:
+    redis:
+      condition: service_healthy
+    db:
+      condition: service_healthy
 
 services:
   db:
@@ -17,56 +67,62 @@ services:
       - ${DATA_PATH_HOST}/postgres:/var/lib/postgresql
     networks:
       - n8n_net
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-  n8n:
+  ### Redis ################################################
+  redis:
+    container_name: 'n8n_redis'
     build:
-      context: ./infrastructure/n8n
+      context: ./infrastructure/dbms/redis
       args:
-        N8N_VERSION: ${N8N_VERSION:-latest}
-    container_name: n8n
-    restart: always
-    # should run n8n in internal network, should not expose
-    # If debug local, open "5678:5678"
-    # ports:
-    #   - "5678:5678"
-    environment:
-      # DB
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=db
-      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
-      - DB_POSTGRESDB_USER=${POSTGRES_USER}
-      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      # Auth n8n
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=${N8N_HOST}
-      - N8N_PROTOCOL=${N8N_PROTOCOL}
-      # URL public for n8n generate link webhook & editor
-      - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}/
-      - N8N_EDITOR_BASE_URL=${N8N_PROTOCOL}://${N8N_HOST}/
-      - TZ=Asia/Ho_Chi_Minh
-      # Performance optimizations
-      - N8N_METRICS=true
-
-    depends_on:
-      - db
+        REDIS_VERSION: ${REDIS_VERSION}
     volumes:
-      - ${DATA_PATH_HOST}/n8n:/home/node/.n8n
+      - ${DATA_PATH_HOST}/redis:/data
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: [ 'CMD', 'redis-cli', 'ping' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - n8n_net
-    healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5678/healthz || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
 
+  n8n:
+    <<: *shared
+
+  n8n-worker:
+    <<: *shared
+    command: worker
+    depends_on:
+      - n8n
+
+  n8n-runners-main:
+    image: n8nio/runners:${N8N_VERSION:-latest}
+    restart: always
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    depends_on:
+      - n8n
+
+  n8n-runners-worker:
+    image: n8nio/runners:${N8N_VERSION:-latest}
+    restart: always
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    depends_on:
+      - n8n-worker
 
   nginx:
     build:
