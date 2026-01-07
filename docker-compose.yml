@@ -36,6 +36,14 @@ x-shared: &shared
     - N8N_PROTOCOL=${N8N_PROTOCOL}
     - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}
     - TZ=Asia/Ho_Chi_Minh
+    # --- Email/SMTP (SendGrid) ---
+    - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
+    - N8N_SMTP_HOST=${N8N_SMTP_HOST:-smtp.sendgrid.net}
+    - N8N_SMTP_PORT=${N8N_SMTP_PORT:-587}
+    - N8N_SMTP_USER=${N8N_SMTP_USER:-apikey}
+    - N8N_SMTP_PASS=${N8N_SMTP_PASS}
+    - N8N_SMTP_SENDER=${N8N_SMTP_SENDER}
+    - N8N_SMTP_SECURE=${N8N_SMTP_SECURE:-false}
     # Performance optimizations
     - N8N_METRICS=true
   links:

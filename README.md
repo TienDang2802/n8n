@@ -54,6 +54,9 @@ nano .env
 #   N8N_HOST=your-domain.com
 #   N8N_PROTOCOL=https
 #   SSL_EMAIL=your-email@example.com
+#   (Optional) SMTP SendGrid:
+#   N8N_SMTP_PASS=SG.your_sendgrid_api_key
+#   N8N_SMTP_SENDER=noreply@your-domain.com
 
 # 3. Ensure DNS A record points to your VPS IP
 dig your-domain.com
@@ -270,6 +273,23 @@ Cần cấu hình các biến môi trường trong file `.env`. Xem chi tiết t
 - **SSL**: 
   - `SSL_EMAIL` - Email for Let's Encrypt notifications
 
+### Biến môi trường tùy chọn:
+
+- **SMTP SendGrid (Email)**: 
+  - `N8N_EMAIL_MODE` - Email mode (default: `smtp`)
+  - `N8N_SMTP_HOST` - SMTP host (default: `smtp.sendgrid.net`)
+  - `N8N_SMTP_PORT` - SMTP port (default: `587`)
+  - `N8N_SMTP_USER` - SMTP username (default: `apikey` for SendGrid)
+  - `N8N_SMTP_PASS` - SendGrid API Key (⚠️ REQUIRED if using email)
+  - `N8N_SMTP_SENDER` - Sender email address (⚠️ REQUIRED if using email)
+  - `N8N_SMTP_SECURE` - Use SSL/TLS (default: `false` for STARTTLS on port 587)
+
+**Lưu ý về SendGrid:**
+- `N8N_SMTP_USER` phải là `apikey` (chuỗi ký tự, không phải API key của bạn)
+- `N8N_SMTP_PASS` là SendGrid API Key bạn tạo từ SendGrid dashboard
+- `N8N_SMTP_SENDER` phải là email đã được xác thực trong SendGrid
+- Để tạo SendGrid API Key: Settings > API Keys > Create API Key
+
 ### Tạo file .env:
 
 ```sh
@@ -396,6 +416,79 @@ make certbot-init
 1. Kiểm tra database đã start: `make logs-db`
 2. Kiểm tra credentials trong `.env`
 3. Kiểm tra network: `docker network inspect n8n_n8n_net`
+
+### Email không gửi được (SendGrid)
+1. Kiểm tra SendGrid API Key đã được set trong `.env`:
+   ```sh
+   grep N8N_SMTP_PASS .env
+   ```
+
+2. Kiểm tra sender email đã được xác thực trong SendGrid dashboard
+
+3. Kiểm tra logs n8n để xem lỗi email:
+   ```sh
+   make logs-n8n | grep -i email
+   ```
+
+4. Verify SendGrid credentials:
+   - `N8N_SMTP_USER` phải là `apikey` (chuỗi ký tự)
+   - `N8N_SMTP_PASS` phải là SendGrid API Key (bắt đầu với `SG.`)
+   - `N8N_SMTP_SENDER` phải là email đã verify trong SendGrid
+
+5. Test SMTP connection:
+   ```sh
+   docker exec n8n_postgres psql -U n8n -d n8n -c "SELECT * FROM settings WHERE key LIKE '%email%';"
+   ```
+
+---
+
+## 📧 Email Configuration (SendGrid)
+
+n8n hỗ trợ gửi email thông qua SMTP SendGrid. Để cấu hình:
+
+### 1. Tạo SendGrid API Key
+
+1. Đăng nhập vào [SendGrid Dashboard](https://app.sendgrid.com/)
+2. Đi tới **Settings** > **API Keys**
+3. Nhấn **Create API Key**
+4. Đặt tên và chọn quyền truy cập (khuyến nghị: **Full Access** hoặc **Mail Send**)
+5. Copy API Key (chỉ hiển thị một lần!)
+
+### 2. Xác thực Sender Email
+
+1. Trong SendGrid Dashboard, đi tới **Settings** > **Sender Authentication**
+2. Xác thực domain hoặc single sender email
+3. Sử dụng email đã xác thực cho `N8N_SMTP_SENDER`
+
+### 3. Cấu hình trong .env
+
+Thêm vào file `.env`:
+
+```env
+# SMTP SendGrid Configuration
+N8N_EMAIL_MODE=smtp
+N8N_SMTP_HOST=smtp.sendgrid.net
+N8N_SMTP_PORT=587
+N8N_SMTP_USER=apikey
+N8N_SMTP_PASS=SG.your_sendgrid_api_key_here
+N8N_SMTP_SENDER=noreply@your-domain.com
+N8N_SMTP_SECURE=false
+```
+
+### 4. Khởi động lại services
+
+```sh
+make restart
+```
+
+### 5. Kiểm tra
+
+Sau khi cấu hình, n8n sẽ sử dụng SendGrid để gửi email cho:
+- Password reset emails
+- User invitation emails
+- Workflow execution notifications (nếu được cấu hình)
+
+Xem chi tiết trong [ENV_VARIABLES.md](ENV_VARIABLES.md).
 
 ---
 
