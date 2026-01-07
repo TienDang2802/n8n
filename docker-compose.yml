@@ -43,7 +43,7 @@ x-shared: &shared
     - N8N_SMTP_USER=${N8N_SMTP_USER:-apikey}
     - N8N_SMTP_PASS=${N8N_SMTP_PASS}
     - N8N_SMTP_SENDER=${N8N_SMTP_SENDER}
-    - N8N_SMTP_SECURE=${N8N_SMTP_SECURE:-false}
+    - N8N_SMTP_SSL=false
     # Performance optimizations
     - N8N_METRICS=true
   links:
