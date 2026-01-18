@@ -39,6 +39,7 @@ x-shared: &shared
     - N8N_PROTOCOL=${N8N_PROTOCOL}
     - WEBHOOK_URL=${N8N_PROTOCOL}://${N8N_HOST}
     - TZ=Asia/Ho_Chi_Minh
+    - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
     # --- Email/SMTP (SendGrid) ---
     - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
     - N8N_SMTP_HOST=${N8N_SMTP_HOST:-smtp.sendgrid.net}
@@ -127,6 +128,8 @@ services:
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - TZ=Asia/Ho_Chi_Minh
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
     networks:
       - n8n_net
     depends_on:
@@ -138,6 +141,8 @@ services:
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - TZ=Asia/Ho_Chi_Minh
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
     networks:
       - n8n_net
     depends_on:
