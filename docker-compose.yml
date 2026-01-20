@@ -29,6 +29,22 @@ x-shared: &shared
     - QUEUE_BULL_REDIS_HOST=redis
     - QUEUE_BULL_REDIS_PORT=${REDIS_PORT}
     - QUEUE_HEALTH_CHECK_ACTIVE=true
+
+    # ========================================================================
+    # TIMEOUT SETTINGS - Fix Bull/Redis timeout issues
+    # ========================================================================
+    # Execution timeout: 1 hour (default: 300s = 5 min)
+    - EXECUTIONS_TIMEOUT=3600
+    # Max timeout: 2 hours
+    - EXECUTIONS_TIMEOUT_MAX=7200
+    # Bull Redis operation timeout: 30 minutes (milliseconds)
+    - QUEUE_BULL_REDIS_TIMEOUT_THRESHOLD=1800000
+    # Check for stalled jobs every 2 minutes
+    - QUEUE_RECOVERY_INTERVAL=120
+    # Graceful shutdown: 5 minutes
+    - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=300
+    # ========================================================================
+
     # --- Security/Runtime ---
     - N8N_ENCRYPTION_KEY=${ENCRYPTION_KEY}
     - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
@@ -97,6 +113,17 @@ services:
       context: ./infrastructure/dbms/redis
       args:
         REDIS_VERSION: ${REDIS_VERSION}
+    # ========================================================================
+    # REDIS TIMEOUT FIX - Prevent Redis disconnection during long jobs
+    # ========================================================================
+    command: >
+      redis-server
+      --timeout 0
+      --tcp-keepalive 300
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    # ========================================================================
     volumes:
       - ${DATA_PATH_HOST}/redis:/data
     ports:
