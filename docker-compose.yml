@@ -121,6 +121,8 @@ services:
       - n8n_net
     depends_on:
       - n8n
+    deploy:
+      replicas: 3
 
   n8n-runners-main:
     image: n8nio/runners:${N8N_VERSION:-latest}
